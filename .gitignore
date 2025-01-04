@@ -1,0 +1,5 @@
+.DS_Store
+.idea/*
+.venv/*
+test/__pycache__
+tracker/__pycache__
