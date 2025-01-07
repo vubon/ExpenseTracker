@@ -47,7 +47,3 @@ class TestETDHandler(unittest.TestCase):
 
         # Assert that the path returned is correct
         self.assertEqual(result, expected_result)
-
-
-if __name__ == '__main__':
-    unittest.main()

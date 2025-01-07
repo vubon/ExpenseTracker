@@ -106,6 +106,16 @@ class TestEmailFetcher(unittest.TestCase):
             target_subjects=['Payment'], message=message)
         self.assertFalse(result)
 
+    def test_is_target_subject_no_subject(self):
+        message = {
+            'payload': {
+                'headers': []
+            }
+        }
+        result = self.email_fetcher.is_target_subject(
+            target_subjects=['Payment'], message=message)
+        self.assertFalse(result)
+
     @patch('tracker.logs_config.logger.info')
     def test_filter_unread_messages_no_messages(self, mock_logger):
         self.email_fetcher.list_unread_messages = MagicMock(return_value=[])
@@ -140,7 +150,3 @@ class TestEmailFetcher(unittest.TestCase):
 
         result = self.email_fetcher.filter_unread_messages(sender='test@example.com', target_subjects=['Payment'])
         self.assertEqual(result, [])
-
-
-if __name__ == '__main__':
-    unittest.main()

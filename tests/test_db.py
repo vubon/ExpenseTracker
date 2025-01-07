@@ -1,6 +1,8 @@
 import unittest
+import sqlite3
 from unittest.mock import MagicMock, patch
 from datetime import datetime
+
 from tracker.db import SQLiteHandler
 
 
@@ -50,6 +52,16 @@ class TestSQLiteHandler(unittest.TestCase):
                 VALUES (?, ?, ?)
                 ''', ('2025-01-01T12:00:00', 'Food', 25.50))
 
+    def test_create_transaction_db_error(self):
+        self.db_handler.cursor.execute.side_effect = sqlite3.Error("Mocked database error")
+
+        result = self.db_handler.create(
+            category="Food",
+            amount=25.50,
+            timestamp=datetime(2025, 1, 1, 12, 0)
+        )
+        self.assertFalse(result, "Mocked database error")
+
     def test_generate_daily_report(self):
         # Mock cursor fetchall to return fake data
         self.mock_cursor.fetchall.return_value = [('Food', 50.00)]
@@ -68,6 +80,13 @@ class TestSQLiteHandler(unittest.TestCase):
         # Check if the report generated is correct
         self.assertEqual(report, [('Food', 50.00)])
 
+    def test_generate_daily_report_db_error(self):
+        self.db_handler.cursor.execute.side_effect = sqlite3.Error("Mocked database error")
+
+        report = self.db_handler.generate_daily_report(year=2025, month=1, day=1)
+
+        self.assertEqual(report, [])
+
     def test_generate_monthly_report(self):
         # Mock cursor fetchall to return fake data
         self.mock_cursor.fetchall.return_value = [('Food', 50.00)]
@@ -80,6 +99,13 @@ class TestSQLiteHandler(unittest.TestCase):
             GROUP BY category
             ''', ('2025-01-01T00:00:00', '2025-01-31T23:59:59'))
         self.assertEqual(report, [('Food', 50.00)])
+
+    def test_generate_monthly_report_db_error(self):
+        self.db_handler.cursor.execute.side_effect = sqlite3.Error("Mocked database error")
+
+        report = self.db_handler.generate_monthly_report(year=2025, month=1)
+
+        self.assertEqual(report, [])
 
     def test_generate_yearly_report(self):
         # Mock cursor fetchall to return fake data
@@ -94,6 +120,23 @@ class TestSQLiteHandler(unittest.TestCase):
             ''', ('2025-01-01T00:00:00', '2025-12-31T23:59:59'))
         self.assertEqual(report, [('Food', 600.00)])
 
+    def test_generate_yearly_report_db_error(self):
+        self.db_handler.cursor.execute.side_effect = sqlite3.Error("Mocked database error")
 
-if __name__ == '__main__':
-    unittest.main()
+        report = self.db_handler.generate_yearly_report(year=2025)
+
+        self.assertEqual(report, [])
+
+    @patch('tracker.db.SQLiteHandler.close_connection')
+    def test_context_manager(self, mock_close_connection):
+        # Mock `close_connection` to verify it is called
+        mock_close_connection.return_value = None
+
+        with SQLiteHandler() as handler:
+            self.assertIsInstance(handler, SQLiteHandler)
+
+        # Ensure `close_connection` was called after exiting the `with` block
+        mock_close_connection.assert_called_once()
+
+    def test_close_connection(self):
+        self.db_handler.close_connection()

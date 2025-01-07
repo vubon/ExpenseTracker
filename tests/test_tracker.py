@@ -148,7 +148,3 @@ class TestExpenseTracker(unittest.TestCase):
 
         # Assert that the close_connection method was called once
         self.mock_db.close_connection.assert_called_once()
-
-
-if __name__ == "__main__":
-    unittest.main()

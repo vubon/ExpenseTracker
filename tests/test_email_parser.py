@@ -1,6 +1,5 @@
 import os
 import unittest
-from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 from tracker.email_parser import EmailParser
@@ -40,7 +39,7 @@ class TestEmailParser(unittest.TestCase):
 
     def test_process_date(self):
         raw_value = "01 January 2025 at 12:30:45"
-        date_format = "%d %B %Y at %H:%M:%S"
+        date_format = "%d%B%Yat%H:%M:%S"
         processed_value = self.parser.process_date(raw_value, date_format)
         self.assertEqual(processed_value, datetime(2025, 1, 1, 12, 30, 45))
 
@@ -116,7 +115,3 @@ class TestEmailParser(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             self.parser._determine_case_function_from_custom_rules()
-
-
-if __name__ == '__main__':
-    unittest.main()
