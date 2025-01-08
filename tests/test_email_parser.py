@@ -39,7 +39,7 @@ class TestEmailParser(unittest.TestCase):
 
     def test_process_date(self):
         raw_value = "01 January 2025 at 12:30:45"
-        date_format = "%d%B%Yat%H:%M:%S"
+        date_format = "%d %B %Y at %H:%M:%S"
         processed_value = self.parser.process_date(raw_value, date_format)
         self.assertEqual(processed_value, datetime(2025, 1, 1, 12, 30, 45))
 

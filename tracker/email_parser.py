@@ -102,23 +102,44 @@ class EmailParser:
         cleaned_value = re.sub(r"[^\d.]", "", value.replace(",", ""))
         return float(cleaned_value) if cleaned_value else None
 
-    @staticmethod
-    def process_date(value: str, date_format: str = "%d%B%Yat%H:%M:%S") -> datetime:
+    def process_date(self, value: str, date_format: str = "%d %B %Y at %H:%M:%S") -> datetime:
         """
         Processes a date field by parsing it with the provided format.
         Args:
             value (str): The raw date value to be processed.
-            date_format (str, optional): The format to parse the date. Defaults to "%d%B%Yat%H:%M:%S".
+            date_format (str, optional): The format to parse the date.Defaults to "%d %B %Y at %H:%M:%S".
         Returns:
             datetime: The parsed date as a `datetime` object.
         Raises:
             ValueError: If the date value does not match the specified format.
         """
         try:
-            remove_whitespace = value.replace(" ", "")
-            return datetime.strptime(remove_whitespace.strip(), date_format)
+            return datetime.strptime(self.clean_and_normalize_date(value), date_format)
         except ValueError as err:
             raise ValueError(f"Error parsing date with format {date_format}: {err}")
+
+    @staticmethod
+    def clean_and_normalize_date(raw_date: str) -> str:
+        """
+        Cleans and normalizes the raw date string by handling inconsistent spacing and patterns.
+
+        :param raw_date: The raw date string to clean.
+        :return: A cleaned and normalized date string.
+        """
+        # Replace non-breaking spaces with regular spaces
+        cleaned_date = raw_date.replace("\xa0", " ")
+
+        # Normalize by adding a space between letters and numbers
+        cleaned_date = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', cleaned_date)  # e.g., "8January" -> "8 January"
+        cleaned_date = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', cleaned_date)  # e.g., "January2025" -> "January 2025"
+
+        # Normalize "at" by ensuring spaces around it
+        cleaned_date = re.sub(r'\s*at\s*', ' at ', cleaned_date)
+
+        # Replace multiple spaces with a single space
+        cleaned_date = re.sub(r'\s+', ' ', cleaned_date).strip()
+
+        return cleaned_date
 
     @staticmethod
     def process_default(value: str) -> str:
