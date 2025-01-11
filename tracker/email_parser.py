@@ -126,7 +126,6 @@ class EmailParser:
         :param raw_date: The raw date string to clean.
         :return: A cleaned and normalized date string.
         """
-        print("Original date string:", raw_date)
         # Replace non-breaking spaces with regular spaces
         cleaned_date = raw_date.replace("\xa0", " ")
 
