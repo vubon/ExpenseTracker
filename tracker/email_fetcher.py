@@ -53,7 +53,7 @@ class EmailFetcher:
             logger.error(f"Failed to fetch details for message ID {message_id}: {e}")
             return None
 
-    def mark_message_as_read(self, message_id: str) -> Optional[None]:
+    def mark_message_as_read(self, message_id: str | None) -> Optional[None]:
         """
         Mark the email as read after processing.
         """

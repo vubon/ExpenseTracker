@@ -126,6 +126,7 @@ class EmailParser:
         :param raw_date: The raw date string to clean.
         :return: A cleaned and normalized date string.
         """
+        print("Original date string:", raw_date)
         # Replace non-breaking spaces with regular spaces
         cleaned_date = raw_date.replace("\xa0", " ")
 
@@ -262,7 +263,7 @@ class EmailParser:
                 if value_parent:
                     next_sibling = value_parent.find_next_sibling("td")
                     if next_sibling:
-                        raw_value = unescape(next_sibling.get_text(strip=True))
+                        raw_value = next_sibling.get_text()
                         try:
                             extract_data[field] = self.process_field(field_name=field, raw_value=raw_value)
                         except ValueError as err:

@@ -4,7 +4,7 @@ import datetime
 import unittest
 from unittest.mock import patch, MagicMock
 
-from tracker.expense_tracker import ExpenseTracker
+from tracker.expense_tracker import ExpenseTracker, clear_screen
 
 
 class TestExpenseTracker(unittest.TestCase):
@@ -126,6 +126,15 @@ class TestExpenseTracker(unittest.TestCase):
         self.mock_db.create.assert_called_once_with("unknown", 100.5, datetime.datetime(2025, 1, 6, 20, 8, 10))
         self.mock_email_fetcher.mark_message_as_read.assert_called_once_with("123")
 
+    @patch("tracker.logs_config.logger.error")
+    def test_run_handle_exception(self, mock_logger):
+        self.expense_tracker.email_fetcher.filter_unread_messages = MagicMock(side_effect=Exception("Test exception"))
+        self.expense_tracker.run()
+        self.expense_tracker.email_fetcher.filter_unread_messages.assert_called_once_with(
+            self.expense_tracker.sender_email, self.expense_tracker.target_subjects
+        )
+        mock_logger.assert_called_once_with("Unknown error: Test exception")
+
     @patch("tracker.expense_tracker.clear_screen")
     def test_show_calls_display(self, mock_clear_screen):
         """
@@ -148,3 +157,31 @@ class TestExpenseTracker(unittest.TestCase):
 
         # Assert that the close_connection method was called once
         self.mock_db.close_connection.assert_called_once()
+
+
+class TestClearScreen(unittest.TestCase):
+    @patch('os.system')  # Mock `os.system` to prevent actual terminal clearing
+    def test_clear_screen_posix(self, mock_os_system):
+        """
+        Test `clear_screen` for POSIX systems (e.g., Linux, macOS).
+        """
+        with patch('os.name', 'posix'):  # Simulate POSIX system
+            clear_screen()
+            # Check that `os.system` is called with 'clear'
+            mock_os_system.assert_called_once_with('clear')
+
+        # Ensure TERM is set to `xterm-256color`
+        self.assertEqual(os.environ['TERM'], 'xterm-256color')
+
+    @patch('os.system')  # Mock `os.system` to prevent actual terminal clearing
+    def test_clear_screen_non_posix(self, mock_os_system):
+        """
+        Test `clear_screen` for non-POSIX systems (e.g., Windows).
+        """
+        with patch('os.name', 'nt'):  # Simulate non-POSIX system (Windows)
+            clear_screen()
+            # Check that `os.system` is called with 'cls'
+            mock_os_system.assert_called_once_with('cls')
+
+        # Ensure TERM is set to `xterm-256color`
+        self.assertEqual(os.environ['TERM'], 'xterm-256color')
