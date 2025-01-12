@@ -3,6 +3,7 @@
 .venv/*
 test/__pycache__
 tracker/__pycache__
+.env
 
 # Unit test / coverage reports
 htmlcov/
