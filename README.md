@@ -91,6 +91,13 @@ ExpenseTracker/
 
 2. Reports will be displayed periodically, and unread emails will be processed and marked as read.
 
+## How to make a binary file
+You can make a binary file for Linux/macOS using the command below. 
+After building the binary you can move it inside /usr/local/bin location or your favorite location. 
+```bash
+pyinstaller --onefile tracker/expense_tracker.py -n etracker
+```
+
 ## Testing
 
 Run unit tests using `unittest`:
