@@ -85,7 +85,7 @@ if __name__ == '__main__':
         while True:
             expense.show()
             expense.run()
-            time.sleep(10)
+            time.sleep(3600)  # An hour
     except KeyboardInterrupt:
         logger.info("Process interrupted. Exiting...")
     finally:
