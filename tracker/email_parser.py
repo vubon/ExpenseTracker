@@ -128,7 +128,7 @@ class EmailParser:
         # Replace non-breaking spaces with regular spaces
         cleaned_date = raw_date.replace("\xa0", " ")
 
-        # Normalize by adding a space between letters and numbers
+        # Normalize by adding a space between numbers and letters
         cleaned_date = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', cleaned_date)  # e.g., "8January" -> "8 January"
         cleaned_date = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', cleaned_date)  # e.g., "January2025" -> "January 2025"
 
@@ -137,6 +137,12 @@ class EmailParser:
 
         # Replace multiple spaces with a single space
         cleaned_date = re.sub(r'\s+', ' ', cleaned_date).strip()
+
+        # Find the time component and truncate everything after it
+        match = re.search(r'\d{2}:\d{2}:\d{2}', cleaned_date)  # Match time in HH:MM:SS format
+        if match:
+            time_end_index = match.end()  # Get the position after the time
+            cleaned_date = cleaned_date[:time_end_index]  # Keep everything up to the time
 
         return cleaned_date
 
