@@ -27,7 +27,8 @@ class EmailParser:
         process_field(field_name, raw_value): Processes a field by applying the appropriate processing rule.
         get_field_names(): Returns a set of all the field names (keys) from both default and custom rules.
         decode_email_body(message): Decodes the email body from Base64 format, handling multipart and single-part emails.
-        extract_tags_values_from_body(): Extracts key values (amount, note, etc.) from the email body using BeautifulSoup and regex.
+        extract_tags_values_from_body(): Extracts key values (amount, note, etc.) from the email body using
+        BeautifulSoup and regex.
     """
 
     def __init__(self, message):
