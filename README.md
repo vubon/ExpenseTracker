@@ -104,6 +104,19 @@ Run unit tests using `unittest`:
 ```bash
 python -m unittest discover tests
 ```
+With coverage:
+```bash
+coverage run -m unittest discover tests
+```
+To view the coverage report:
+```bash
+coverage report -m
+```
+Generate HTML report:
+```bash
+coverage html
+```
+
 
 ## Security Notes
 
