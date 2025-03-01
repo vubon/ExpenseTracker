@@ -65,8 +65,9 @@ class TestExpenseTracker(unittest.TestCase):
         """
         Test that an error is raised when environment variables are missing.
         """
+        self.expense_tracker.sender_email = None
         with self.assertRaises(ValueError) as context:
-            ExpenseTracker()
+            self.expense_tracker.validate_env_variables()
         self.assertEqual(str(context.exception), "Missing environment variable: ET_SENDER_EMAIL")
 
     @patch("tracker.logs_config.logger.info")
