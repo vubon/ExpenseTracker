@@ -1,4 +1,5 @@
-# Expense Tracker
+# Expense Tracker 
+[![Python application](https://github.com/vubon/ExpenseTracker/actions/workflows/python-app.yml/badge.svg?branch=main)](https://github.com/vubon/ExpenseTracker/actions/workflows/python-app.yml)
 
 Expense Tracker is a Python-based application that fetches transaction-related emails, processes the data, 
 and stores it in an SQLite database for generating reports. It helps track expenses efficiently by categorizing 
