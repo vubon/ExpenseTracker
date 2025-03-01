@@ -15,13 +15,23 @@ class TestExpenseTracker(unittest.TestCase):
         """
         Set up an instance of ExpenseTracker for testing with mocked dependencies.
         """
-        with patch("tracker.gmail_authenticator.GmailAuthenticator") as MockGmailAuthenticator, \
+        self.test_dir = '/tmp/etd'
+        os.makedirs(self.test_dir, exist_ok=True)
+
+        with patch("tracker.gmail_authenticator.GmailAuthenticator", autospec=True) as MockGmailAuthenticator, \
                 patch("tracker.db.SQLiteHandler") as MockSQLiteHandler, \
                 patch("tracker.email_fetcher.EmailFetcher") as MockEmailFetcher, \
-                patch("tracker.display.Display") as MockDisplay:
+                patch("tracker.display.Display") as MockDisplay, \
+                patch("tracker.gmail_authenticator.ETDHandler") as mockETD, \
+                patch.object(ExpenseTracker, '__init__', lambda x: None):
+
             # Mock Gmail Authenticator
+            self.mock_etd_handler = mockETD.return_value
+            # self.mock_etd_handler.get_path.return_value = self.test_dir
+            self.mock_etd_handler.get_path.side_effect = lambda filename: os.path.join(self.test_dir, filename)
             self.mock_service = MagicMock()
-            MockGmailAuthenticator().authenticate.return_value = self.mock_service
+            self.mock_gmail = MockGmailAuthenticator.return_value
+            self.mock_gmail.authenticate.return_value = self.mock_service
 
             # Mock EmailFetcher
             self.mock_email_fetcher = MockEmailFetcher()
@@ -35,10 +45,13 @@ class TestExpenseTracker(unittest.TestCase):
 
             # Initialize the ExpenseTracker with mocks
             self.expense_tracker = ExpenseTracker()
+            self.expense_tracker.gmail = self.mock_gmail
             self.expense_tracker.service = self.mock_service
             self.expense_tracker.email_fetcher = self.mock_email_fetcher
             self.expense_tracker.db = self.mock_db
             self.expense_tracker.display = self.mock_display
+            self.expense_tracker.sender_email = os.environ.get("ET_SENDER_EMAIL")
+            self.expense_tracker.target_subjects = os.environ.get("ET_TARGET_SUBJECTS")
 
     def test_validate_env_variables_success(self):
         """
@@ -157,6 +170,13 @@ class TestExpenseTracker(unittest.TestCase):
 
         # Assert that the close_connection method was called once
         self.mock_db.close_connection.assert_called_once()
+
+    def tearDown(self):
+        """
+        Clean up after each test.
+        """
+        if os.path.exists(self.test_dir):
+            os.rmdir(self.test_dir)
 
 
 class TestClearScreen(unittest.TestCase):

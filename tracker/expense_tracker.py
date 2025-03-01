@@ -38,7 +38,7 @@ class ExpenseTracker:
 
     def validate_env_variables(self):
         if not self.sender_email:
-            logger.error("Missing CC_SENDER_EMAIL. Please set this environment variable.")
+            logger.error("Missing ET_SENDER_EMAIL. Please set this environment variable.")
             raise ValueError("Missing environment variable: ET_SENDER_EMAIL")
 
     def run(self):
