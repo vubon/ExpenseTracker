@@ -3,6 +3,7 @@ import json
 import os
 import re
 from datetime import datetime
+from typing import LiteralString
 
 from bs4 import BeautifulSoup
 
@@ -56,7 +57,7 @@ class EmailParser:
         return {
             "amount": self.process_amount,
             "date": self.process_date,
-            "note": self.process_default
+            "note": self.process_note
         }
 
     def _define_field_types(self) -> dict:
@@ -66,7 +67,8 @@ class EmailParser:
         return {
             "amount": self.process_amount,
             "date": self.process_date,
-            "default": self.process_default
+            "default": self.process_default,
+            "note": self.process_note
         }
 
     @staticmethod
@@ -99,8 +101,8 @@ class EmailParser:
         Returns:
             float | None: The processed amount as a float, or None if the value cannot be parsed.
         """
-        cleaned_value = re.sub(r"[^\d.]", "", value.replace(",", ""))
-        return float(cleaned_value) if cleaned_value else None
+        matched_value = re.search(r"Amount.*?([\d,.]+)", value)
+        return float(matched_value.group(1).replace(",", "")) if matched_value else None
 
     def process_date(self, value: str, date_format: str = "%d %B %Y at %H:%M:%S") -> datetime:
         """
@@ -114,38 +116,45 @@ class EmailParser:
             ValueError: If the date value does not match the specified format.
         """
         try:
-            return datetime.strptime(self.clean_and_normalize_date(value), date_format)
-        except ValueError as err:
+            date_str, date_format = self.clean_and_normalize_date(value)
+            return datetime.strptime(date_str, date_format)
+        except (ValueError,TypeError) as err:
             raise ValueError(f"Error parsing date with format {date_format}: {err}")
 
     @staticmethod
-    def clean_and_normalize_date(raw_date: str) -> str:
+    def clean_and_normalize_date(value: str) -> tuple[str | LiteralString, str] | tuple[None, None]:
         """
         Cleans and normalizes the raw date string by handling inconsistent spacing and patterns.
 
-        :param raw_date: The raw date string to clean.
+        :param value: The raw date string to clean.
         :return: A cleaned and normalized date string.
         """
-        # Replace non-breaking spaces with regular spaces
-        cleaned_date = raw_date.replace("\xa0", " ")
+        patterns_formats = [
+            (r"(?:Date )?(\d{1,2}) ([\w]+) (\d{4}) at (\d{2}:\d{2}:\d{2})", "%d %B %Y %H:%M:%S"), #"2 March 2025 at 21:15:27"
+            (r"(?:Date )?([\w]+) (\d{1,2}), (\d{4}) (\d{2}:\d{2}:\d{2})", "%B %d, %Y %H:%M:%S"), #"March 2, 2025 21:15:27"
+            (r"(?:Date )?(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2}:\d{2})", "%Y-%m-%d %H:%M:%S"), #"2025-03-02 21:15:27"
+            (r"(?:Date )?(\d{1,2})/(\d{1,2})/(\d{4}) (\d{2}:\d{2}:\d{2})", "%d/%m/%Y %H:%M:%S"), #"02/03/2025 21:15:27"
+            (r"(?:Date )?(\d{1,2}) ([\w]{3}) (\d{4}) at (\d{2}:\d{2}:\d{2})", "%d %b %Y %H:%M:%S") #"2 Mar 2025 at 21:15:27"
+        ]
 
-        # Normalize by adding a space between numbers and letters
-        cleaned_date = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', cleaned_date)  # e.g., "8January" -> "8 January"
-        cleaned_date = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', cleaned_date)  # e.g., "January2025" -> "January 2025"
+        for pattern, format_str in patterns_formats:
+            match = re.search(pattern, value)
+            if match:
+                try:
+                    if format_str == "%B %d, %Y %H:%M:%S":  # "March 2, 2025 21:15:27"
+                        date_str = f"{match.group(1)} {match.group(2)}, {match.group(3)} {match.group(4)}"
+                    elif format_str == "%Y-%m-%d %H:%M:%S":  # "2025-03-02 21:15:27"
+                        date_str = f"{match.group(1)}-{match.group(2)}-{match.group(3)} {match.group(4)}"
+                    elif format_str == "%d/%m/%Y %H:%M:%S":  # "02/03/2025 21:15:27"
+                        date_str = f"{match.group(1)}/{match.group(2)}/{match.group(3)} {match.group(4)}"
+                    else:
+                        date_str = " ".join(match.groups())  # Other formats can be directly joined
 
-        # Normalize "at" by ensuring spaces around it
-        cleaned_date = re.sub(r'\s*at\s*', ' at ', cleaned_date)
+                    return date_str, format_str
+                except ValueError:
+                    continue
 
-        # Replace multiple spaces with a single space
-        cleaned_date = re.sub(r'\s+', ' ', cleaned_date).strip()
-
-        # Find the time component and truncate everything after it
-        match = re.search(r'\d{2}:\d{2}:\d{2}', cleaned_date)  # Match time in HH:MM:SS format
-        if match:
-            time_end_index = match.end()  # Get the position after the time
-            cleaned_date = cleaned_date[:time_end_index]  # Keep everything up to the time
-
-        return cleaned_date
+        return None, None
 
     @staticmethod
     def process_default(value: str) -> str:
@@ -157,6 +166,18 @@ class EmailParser:
             str: The processed value, or "unknown" if the value is empty.
         """
         return value.strip().lower() if value else "unknown"
+
+    @staticmethod
+    def process_note(value: str) -> str:
+        """
+          Processes a field using default logic (trimming and converting to lowercase).
+        Args:
+            value (str): The raw value to be processed.
+        Returns:
+            str: The processed value, or "unknown" if the value is empty.
+        """
+        matched_value = re.search(r"Note\s+(\w+)", value, re.IGNORECASE)
+        return matched_value.group(1).lower() if matched_value else "unknown"
 
     def determine_rule(self, field_name: str):
         """
@@ -259,20 +280,15 @@ class EmailParser:
             dict: A dictionary of field names (e.g., "Amount", "Date") mapped to their processed values.
         """
         soup = BeautifulSoup(self.message, 'html.parser')
-        extract_data = dict()
+        raw_text = " ".join(soup.get_text().split()).strip()
+
+        extract_data = {}
 
         for field in self.get_field_names():
-            label = soup.find(string=re.compile(rf"{field}.*", re.IGNORECASE))
-            if label:
-                value_parent = label.find_parent("td")
-                if value_parent:
-                    next_sibling = value_parent.find_next_sibling("td")
-                    if next_sibling:
-                        raw_value = next_sibling.get_text()
-                        try:
-                            extract_data[field] = self.process_field(field_name=field, raw_value=raw_value)
-                        except ValueError as err:
-                            logger.info(f"Data processor error: {err}")
-                            extract_data[field] = None
+            try:
+                extract_data[field] = self.process_field(field_name=field, raw_value=raw_text)
+            except ValueError as err:
+                logger.info(f"Data processor error: {err}")
+                extract_data[field] = None
 
         return extract_data

@@ -12,7 +12,7 @@ class TestEmailParser(unittest.TestCase):
         # Mock the environment variable
         custom_rule = {
             "Amount": {"type": "amount"},
-            "Note": {"type": "default"},
+            "Note": {"type": "note"},
             "Date": {"type": "date", "format": "%d %B %Y at %H:%M:%S"}
         }
         os.environ['ET_EMAIL_FIELD_RULES'] = json.dumps(custom_rule)
@@ -33,14 +33,14 @@ class TestEmailParser(unittest.TestCase):
     def test_load_rules_from_env(self):
         expected_rules = {
             "Amount": {"type": "amount"},
-            "Note": {"type": "default"},
+            "Note": {"type": "note"},
             "Date": {"type": "date", "format": "%d %B %Y at %H:%M:%S"}
         }
         custom_rules = self.parser._load_rules_from_env()
         self.assertEqual(custom_rules, expected_rules)
 
     def test_process_amount(self):
-        raw_value = "$123.45"
+        raw_value = "Amount $123.45"
         processed_value = self.parser.process_amount(raw_value)
         self.assertEqual(processed_value, 123.45)
 
@@ -61,7 +61,7 @@ class TestEmailParser(unittest.TestCase):
 
     def test_determine_rule_default(self):
         rule = self.parser.determine_rule("note")
-        self.assertEqual(rule, self.parser.process_default)
+        self.assertEqual(rule, self.parser.process_note)
 
     def test_get_field_names(self):
         field_names = self.parser.get_field_names()

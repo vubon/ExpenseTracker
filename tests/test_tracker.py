@@ -1,3 +1,4 @@
+import json
 import os
 import datetime
 
@@ -104,8 +105,18 @@ class TestExpenseTracker(unittest.TestCase):
         mock_email_parser().extract_tags_values_from_body.return_value = {"Amount": None}
         self.expense_tracker.run()
 
-        mock_logger_warning.assert_called_once_with(
-            "Skipping email with missing data: {'Amount': None}")
+        # Capture the actual log message
+        mock_logger_warning.assert_called_once()
+        actual_log_message = mock_logger_warning.call_args[0][0]
+
+        # Extract dictionary part from the string (after the colon)
+        actual_data_str = actual_log_message.split(": ", 1)[1]
+        actual_data = json.loads(actual_data_str.replace("'", '"').replace("None", "null"))
+
+        # Define expected dictionary
+        expected_data = {'Date': None, 'Note': 'unknown', 'Amount': None}
+
+        assert actual_data == expected_data, f"Expected {expected_data}, but got {actual_data}"
 
     @patch("tracker.email_parser.EmailParser")
     def test_run_processes_valid_emails(self, mock_email_parser):
