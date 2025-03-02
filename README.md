@@ -98,6 +98,7 @@ After building the binary you can move it inside /usr/local/bin location or your
 ```bash
 pyinstaller --onefile tracker/expense_tracker.py -n etracker
 ```
+## macOS & linux
 Copy the binary file to /usr/local/bin location
 ```bash
 sudo cp dist/etracker /usr/local/bin
