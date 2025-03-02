@@ -98,6 +98,15 @@ After building the binary you can move it inside /usr/local/bin location or your
 ```bash
 pyinstaller --onefile tracker/expense_tracker.py -n etracker
 ```
+Copy the binary file to /usr/local/bin location
+```bash
+sudo cp dist/etracker /usr/local/bin
+```
+Now you can run the binary file from anywhere in the terminal.
+```bash
+etracker
+```
+But before running the binary file you need to set the environment variables.
 
 ## Testing
 
@@ -117,7 +126,6 @@ Generate HTML report:
 ```bash
 coverage html
 ```
-
 
 ## Security Notes
 
