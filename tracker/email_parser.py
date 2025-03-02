@@ -3,7 +3,6 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import LiteralString
 
 from bs4 import BeautifulSoup
 
@@ -122,7 +121,7 @@ class EmailParser:
             raise ValueError(f"Error parsing date with format {date_format}: {err}")
 
     @staticmethod
-    def clean_and_normalize_date(value: str) -> tuple[str | LiteralString, str] | tuple[None, None]:
+    def clean_and_normalize_date(value: str) -> tuple[str, str] | tuple[None, None]:
         """
         Cleans and normalizes the raw date string by handling inconsistent spacing and patterns.
 
