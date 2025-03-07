@@ -86,6 +86,7 @@ if __name__ == '__main__':
             expense.show()
             expense.run()
             time.sleep(3600)  # An hour
+            expense.show() # Show the summary again
     except KeyboardInterrupt:
         logger.info("Process interrupted. Exiting...")
     finally:
