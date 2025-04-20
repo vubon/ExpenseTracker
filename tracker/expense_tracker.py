@@ -9,8 +9,7 @@ from tracker.email_parser import EmailParser
 from tracker.db import SQLiteHandler
 from tracker.display import Display
 
-DEFAULT_SUBJECTS = ("Payments confirmation,Confirmation of funds transfer,Top Up Confirmation,\n"
-                    "Pay with QR transaction,Confirmation of Cardless Withdrawal ")
+DEFAULT_SUBJECTS = "Payments,funds transfer,Top Up,QR transaction,Cardless Withdrawal,Funds transfer"
 
 
 def clear_screen():
