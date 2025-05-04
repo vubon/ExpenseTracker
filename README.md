@@ -14,6 +14,7 @@ transactions and summarizing them in daily, monthly, and yearly reports.
 - **Reporting**:
   - Daily, monthly, and yearly transaction summaries.
   - Can generate previous month transaction data.
+  - Can add `--interval` option to get the transaction data for a specific interval.
   - Total expense calculation per category.
 - **Display**: Generate reports in a tabular format using the `tabulate` library.
 - **Environment Variables**: Securely configure sensitive data like email credentials and target subjects.
