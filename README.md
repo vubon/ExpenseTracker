@@ -13,6 +13,7 @@ transactions and summarizing them in daily, monthly, and yearly reports.
 - **Database Storage**: Store transaction data in an SQLite database with indexing for faster queries.
 - **Reporting**:
   - Daily, monthly, and yearly transaction summaries.
+  - Can generate previous month transaction data.
   - Total expense calculation per category.
 - **Display**: Generate reports in a tabular format using the `tabulate` library.
 - **Environment Variables**: Securely configure sensitive data like email credentials and target subjects.
@@ -32,6 +33,7 @@ ExpenseTracker/
    ├── logs_config.py        # Logging configuration
    ├── display.py            # Handles data display
    ├── gmail_authenticator.py # Gmail OAuth authentication
+   ├── validators.py         # Validates user's input
 ├── tests/                # Unit tests for the application
    │   ├── __init__.py
    │   ├── test_db.py
@@ -39,7 +41,8 @@ ExpenseTracker/
    │   ├── test_email_fetcher.py
    │   ├── test_email_parser.py
    │   ├── test_etd.py
-   │   └── test_tracker.py
+   │   └── test_tracker.py.
+   │   └── test_validators.py.
    │   
 └── README.md             # Project documentation
 ```
