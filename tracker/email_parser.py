@@ -3,6 +3,7 @@ import json
 import os
 import re
 from datetime import datetime
+from dateutil.parser import parse
 
 from bs4 import BeautifulSoup
 
@@ -31,16 +32,18 @@ class EmailParser:
         BeautifulSoup and regex.
     """
 
-    def __init__(self, message):
-        """
-        Initializes the EmailParser with the provided email message.
+    def __init__(self, message: dict):
+        """Initializes the EmailParser with the provided email message.
+
         Args:
             message (dict): The raw email message to be processed.
-        Sets up:
-            - `self.message`: The decoded body of the email.
-            - `self.default_rules`: Default processing rules for common field types.
-            - `self.field_types`: Field type processing rules for custom rules field.
-            - `self.custom_rules`: Custom processing rules loaded from the environment variable `ET_EMAIL_FIELD_RULES`.
+
+        Attributes:
+            message (str): The decoded body of the email.
+            default_rules (dict): Default processing rules for common field types.
+            field_types (dict): Field type processing rules for custom rules field.
+            custom_rules (dict): Custom processing rules loaded from the environment
+                variable `ET_EMAIL_FIELD_RULES`.
         """
         self.message = self.decode_email_body(message)
         self.default_rules = self._define_default_rules()
@@ -48,10 +51,11 @@ class EmailParser:
         self.custom_rules = self._load_rules_from_env()
 
     def _define_default_rules(self) -> dict:
-        """
-        Defines default rules for common processing types such as "amount", "date", and "note".
+        """Defines default rules for common processing types.
+
         Returns:
-            dict: A dictionary of default processing functions mapped to field types.
+            dict: A dictionary of default processing functions mapped to field types
+                (e.g., "amount", "date", "note").
         """
         return {
             "amount": self.process_amount,
@@ -60,8 +64,10 @@ class EmailParser:
         }
 
     def _define_field_types(self) -> dict:
-        """
-            Define field types and their corresponding processing functions.
+        """Defines field types and their corresponding processing functions.
+
+        Returns:
+            dict: A dictionary mapping field type names to their processing methods.
         """
         return {
             "amount": self.process_amount,
@@ -72,17 +78,23 @@ class EmailParser:
 
     @staticmethod
     def _load_rules_from_env() -> dict:
-        """
-        Loads custom rules for processing fields from the environment variable `ET_EMAIL_FIELD_RULES`.
-        Example:
-            Export the environment variable `ET_EMAIL_FIELD_RULES` as a JSON string:
-            export ET_EMAIL_FIELD_RULES='{
-                "Amount": {"type": "amount"},
-                "Note": {"type": "default"},
-                "Date": {"type": "date", "format": "%d %B %Y at %H:%M:%S"}
-            }'
+        """Loads custom rules from the `ET_EMAIL_FIELD_RULES` environment variable.
+
+        The environment variable should contain a JSON string defining custom rules
+        for processing email fields. For example:
+
+        ```json
+        {
+            "Amount": {"type": "amount"},
+            "Note": {"type": "default"},
+            "Date": {"type": "date", "format": "%d %B %Y at %H:%M:%S"}
+        }
+        ```
+
         Returns:
-            dict: A dictionary containing custom field processing rules.
+            dict: A dictionary containing custom field processing rules. Returns an
+                empty dictionary if the environment variable is not set or contains
+                invalid JSON.
         """
         raw_rules = os.getenv("ET_EMAIL_FIELD_RULES", '{}')
         try:
@@ -93,102 +105,142 @@ class EmailParser:
 
     @staticmethod
     def process_amount(value: str) -> float | None:
-        """
-        Processes an amount field by removing non-numeric characters and converting it to a float.
+        """Processes an amount field by extracting and converting it to a float.
+
+        Uses regex to find a numeric value (allowing for commas and decimals)
+        preceded by "Amount".
+
         Args:
-            value (str): The raw amount value to be processed.
+            value (str): The raw string value potentially containing the amount.
+
         Returns:
-            float | None: The processed amount as a float, or None if the value cannot be parsed.
+            float | None: The extracted amount as a float, or None if no amount
+                is found or if conversion fails.
         """
         matched_value = re.search(r"Amount.*?([\d,.]+)", value)
         return float(matched_value.group(1).replace(",", "")) if matched_value else None
 
-    def process_date(self, value: str, date_format: str = "%d %B %Y at %H:%M:%S") -> datetime:
-        """
-        Processes a date field by parsing it with the provided format.
+    def process_date(self, value: str) -> datetime | None:
+        """Processes a date field using dateutil.parser.parse.
+
+        Attempts to extract a date/time string from common textual contexts
+        (e.g., "Date: March 2, 2025 21:15:27") before passing to `parse`.
+        If parsing is successful, returns the datetime object.
+        If parsing fails, logs an error and returns None.
+
         Args:
-            value (str): The raw date value to be processed.
-            date_format (str, optional): The format to parse the date.Defaults to "%d %B %Y at %H:%M:%S".
+            value (str): The raw string value potentially containing the date.
+
         Returns:
-            datetime: The parsed date as a `datetime` object.
-        Raises:
-            ValueError: If the date value does not match the specified format.
+            datetime | None: The parsed datetime object, or None if parsing fails.
         """
+        # Regex to find common date patterns, trying to isolate the date string
+        # This regex attempts to capture a date/time string that might be prefixed with "Date: "
+        # and might be followed by " at " and more time details, or a timezone.
+        # It's a general attempt and might need refinement based on actual email formats.
+        date_pattern = r"(?:Date:?\s*)?([\w\s,:\./-]+?)(?:\s*at\s*[\w\s,:\./-]+)?(?:[A-Z]{3,}|[+-]\d{2}:\d{2})?$"
+        match = re.search(date_pattern, value, re.IGNORECASE)
+
+        date_to_parse = value # Default to the original value
+        if match:
+            # If a pattern is matched, try to use the first captured group,
+            # which should be the cleaner date/time string.
+            # This is a simple heuristic; more complex emails might need more robust extraction.
+            # Example: "Date March 2, 2025 at 21:15:27" -> group(1) might be "March 2, 2025"
+            # Example: "Date: 2025-03-02 21:15:27" -> group(1) might be "2025-03-02 21:15:27"
+            # The regex tries to capture the core date/time part.
+             # Let's try a few common explicit patterns first
+            explicit_patterns = [
+                r"Date:?\s*(\w+\s+\d{1,2},\s+\d{4}\s+\d{2}:\d{2}:\d{2})",  # "Date: March 2, 2025 21:15:27"
+                r"Date:?\s*(\d{1,2}\s+\w+\s+\d{4}\s+at\s+\d{2}:\d{2}:\d{2})", # "Date: 2 March 2025 at 21:15:27"
+                r"Date:?\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})" # "Date: 2025-03-02 21:15:27"
+            ]
+            extracted_date_str = None
+            for pattern in explicit_patterns:
+                search_match = re.search(pattern, value, re.IGNORECASE)
+                if search_match and search_match.group(1):
+                    extracted_date_str = search_match.group(1).strip()
+                    break
+
+            if extracted_date_str:
+                date_to_parse = extracted_date_str
+            else: # Fallback to a more general extraction if specific patterns don't match
+                general_match = re.search(r"Date:?\s*(.*)", value, re.IGNORECASE)
+                if general_match and general_match.group(1):
+                    # Further clean up common irrelevant parts if possible
+                    # This is very heuristic and might need adjustments
+                    date_to_parse = general_match.group(1).strip()
+                    # Remove common timezone/day parts that dateutil might handle or get confused by
+                    date_to_parse = re.sub(r"\s+[A-Z]{3,}\s*$", "", date_to_parse) # Remove trailing timezone like EST
+                    date_to_parse = re.sub(r"\s+\([A-Za-z\s]+\)\s*$", "", date_to_parse) # Remove day in parenthesis (e.g. (Monday))
+
+        if not date_to_parse.strip():
+            logger.warning(f"Date string is empty after extraction attempts from: {value}")
+            return None
+
         try:
-            date_str, date_format = self.clean_and_normalize_date(value)
-            return datetime.strptime(date_str, date_format)
-        except (ValueError,TypeError) as err:
-            raise ValueError(f"Error parsing date with format {date_format}: {err}")
-
-    @staticmethod
-    def clean_and_normalize_date(value: str) -> tuple[str, str] | tuple[None, None]:
-        """
-        Cleans and normalizes the raw date string by handling inconsistent spacing and patterns.
-
-        :param value: The raw date string to clean.
-        :return: A cleaned and normalized date string.
-        """
-        patterns_formats = [
-            (r"(?:Date )?(\d{1,2}) ([\w]+) (\d{4}) at (\d{2}:\d{2}:\d{2})", "%d %B %Y %H:%M:%S"), #"2 March 2025 at 21:15:27"
-            (r"(?:Date )?([\w]+) (\d{1,2}), (\d{4}) (\d{2}:\d{2}:\d{2})", "%B %d, %Y %H:%M:%S"), #"March 2, 2025 21:15:27"
-            (r"(?:Date )?(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2}:\d{2})", "%Y-%m-%d %H:%M:%S"), #"2025-03-02 21:15:27"
-            (r"(?:Date )?(\d{1,2})/(\d{1,2})/(\d{4}) (\d{2}:\d{2}:\d{2})", "%d/%m/%Y %H:%M:%S"), #"02/03/2025 21:15:27"
-            (r"(?:Date )?(\d{1,2}) ([\w]{3}) (\d{4}) at (\d{2}:\d{2}:\d{2})", "%d %b %Y %H:%M:%S") #"2 Mar 2025 at 21:15:27"
-        ]
-
-        for pattern, format_str in patterns_formats:
-            match = re.search(pattern, value)
-            if match:
-                try:
-                    if format_str == "%B %d, %Y %H:%M:%S":  # "March 2, 2025 21:15:27"
-                        date_str = f"{match.group(1)} {match.group(2)}, {match.group(3)} {match.group(4)}"
-                    elif format_str == "%Y-%m-%d %H:%M:%S":  # "2025-03-02 21:15:27"
-                        date_str = f"{match.group(1)}-{match.group(2)}-{match.group(3)} {match.group(4)}"
-                    elif format_str == "%d/%m/%Y %H:%M:%S":  # "02/03/2025 21:15:27"
-                        date_str = f"{match.group(1)}/{match.group(2)}/{match.group(3)} {match.group(4)}"
-                    else:
-                        date_str = " ".join(match.groups())  # Other formats can be directly joined
-
-                    return date_str, format_str
-                except ValueError:
-                    continue
-
-        return None, None
+            logger.info(f"Attempting to parse date string: '{date_to_parse}' from original value: '{value}'")
+            return parse(date_to_parse)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error parsing date string '{date_to_parse}' (from original: '{value}'): {e}")
+            return None
 
     @staticmethod
     def process_default(value: str) -> str:
-        """
-        Processes a field using default logic (trimming and converting to lowercase).
+        """Processes a generic field with default logic.
+
+        The default logic involves stripping leading/trailing whitespace and
+        converting the string to lowercase. If the value is empty or None
+        after stripping, it returns "unknown".
+
         Args:
-            value (str): The raw value to be processed.
+            value (str): The raw string value to be processed.
+
         Returns:
-            str: The processed value, or "unknown" if the value is empty.
+            str: The processed string value, or "unknown" if the input is empty.
         """
-        return value.strip().lower() if value else "unknown"
+        processed_value = value.strip().lower() if value else ""
+        return processed_value if processed_value else "unknown"
 
     @staticmethod
     def process_note(value: str) -> str:
-        """
-          Processes a field using default logic (trimming and converting to lowercase).
+        """Processes a note field by extracting the content following "Note".
+
+        Uses regex to find the content immediately following "Note " (case-insensitive)
+        and converts it to lowercase.
+
         Args:
-            value (str): The raw value to be processed.
+            value (str): The raw string value potentially containing the note.
+
         Returns:
-            str: The processed value, or "unknown" if the value is empty.
+            str: The extracted note content in lowercase, or "unknown" if no note
+                is found or if the content is empty.
         """
         matched_value = re.search(r"Note\s+(\w+)", value, re.IGNORECASE)
         return matched_value.group(1).lower() if matched_value else "unknown"
 
     def determine_rule(self, field_name: str):
-        """
-        Determines the processing rule for a given field name based on custom or default rules.
-        Args:
-            field_name (str): The name of the field to process.
-        Returns:
-            function: The processing function for the field.
-        Raises:
-            ValueError: If no processing rule is found for the field.
-        """
+        """Determines the processing rule for a given field name.
 
+        It first checks for a custom rule defined for the `field_name`. If found,
+        it retrieves the processing type (e.g., "date", "amount") and any
+        associated parameters (e.g., "format" for dates). It then returns the
+        corresponding processing method.
+
+        If no custom rule is found, it attempts to find a default rule by
+        matching the lowercase `field_name` (e.g., "date" maps to `process_date`).
+
+        Args:
+            field_name (str): The name of the field to determine the rule for.
+
+        Returns:
+            function: The processing function (method) to be used for the field.
+
+        Raises:
+            ValueError: If a custom rule specifies an invalid `type`, if a "date"
+                type rule is missing a `format`, or if no processing rule
+                (custom or default) can be found for the `field_name`.
+        """
         # Check user-based rule at first if exist for that field
         if field_name in self.custom_rules:
             custom_rule = self.custom_rules[field_name]
@@ -196,14 +248,12 @@ class EmailParser:
 
             if field_type in self.field_types:
                 if field_type == "date":
-                    date_format = custom_rule.get("format")
-                    if not date_format:
-                        raise ValueError("Date format must be provided for date processing")
-                    return lambda value: self.process_date(value, date_format)
-
+                    # Date format is no longer needed for process_date
+                    return lambda value: self.process_date(value)
                 return self.field_types[field_type]
 
-            raise ValueError(f"Invalid field type '{field_type}' for field: {field_name}")
+            # Ensure the error message for invalid field type is clear
+            raise ValueError(f"Invalid field type '{field_type}' defined in custom rules for field: {field_name}. Supported types are: {list(self.field_types.keys())}")
 
         # Use default rules based on inferred field name
         if field_name.lower() in self.default_rules:
@@ -212,32 +262,59 @@ class EmailParser:
         # If no rule found, raise an exception or return None
         raise ValueError(f"No processing rule found for field: {field_name}")
 
-    def process_field(self, field_name, raw_value):
-        """
-        Processes a field by applying the appropriate processing rule.
+    def process_field(self, field_name: str, raw_value: str):
+        """Processes a field by applying the dynamically determined processing rule.
+
+        This method uses `determine_rule` to get the appropriate function for
+        the `field_name` and then calls that function with `raw_value`.
+
         Args:
-            field_name (str): The name of the field to process.
-            raw_value (str): The raw value to be processed.
+            field_name (str): The name of the field to process (e.g., "Amount", "Date").
+            raw_value (str): The raw string value extracted from the email that
+                corresponds to this field.
+
         Returns:
-            The processed value, which can be of type `float`, `datetime`, `str`, or `None`.
+            The processed value. The type of this value depends on the processing
+            rule applied (e.g., float for "amount", datetime for "date", string
+            for "note" or "default"). Can also be None if processing fails.
+
+        Raises:
+            ValueError: If `determine_rule` cannot find a rule for `field_name`.
         """
         processing_rule = self.determine_rule(field_name)
         return processing_rule(raw_value)
 
-    def get_field_names(self):
-        """
-        Combine key names from both default and custom rules.
+    def get_field_names(self) -> set[str]:
+        """Combines field names from default and custom rules into a single set.
+
+        It applies a case transformation (title, lower, or upper) to the default
+        rule keys based on the predominant case style detected in custom rule keys
+        by `_determine_case_function_from_custom_rules`.
+
         Returns:
-            set: A unified set of key names from both rules.
+            set[str]: A set containing all unique field names from both default
+                and custom rules, with consistent casing.
+
+        Raises:
+            ValueError: If `_determine_case_function_from_custom_rules` cannot
+                determine a uniform case for custom rule keys.
         """
         case_func = self._determine_case_function_from_custom_rules()
         return {case_func(key) for key in self.default_rules.keys()}.union(self.custom_rules.keys())
 
-    def _determine_case_function_from_custom_rules(self):
-        """
-        Determine the case function (title, lower, or upper) based on the keys in custom_rules.
+    def _determine_case_function_from_custom_rules(self) -> callable:
+        """Determines the appropriate string case function from custom rule keys.
+
+        Inspects the keys of `self.custom_rules` to see if they are all in
+        title case, lowercase, or uppercase.
+
         Returns:
-            function: The case function to apply (either title(), lower(), or upper()).
+            callable: The corresponding string method (str.title, str.lower,
+                or str.upper).
+
+        Raises:
+            ValueError: If the custom rule keys do not follow a consistent
+                casing (all title, all lower, or all upper).
         """
         # Check the case format of all custom_rules keys
         all_keys = self.custom_rules.keys()
@@ -252,13 +329,20 @@ class EmailParser:
             raise ValueError("Custom rules keys must be uniformly in title, lower, or upper case.")
 
     @staticmethod
-    def decode_email_body(message):
-        """
-        Decodes the email body from Base64 format, handling both multipart and single-part emails.
+    def decode_email_body(message: dict) -> str | None:
+        """Decodes the email body from a raw email message dictionary.
+
+        Handles both single-part and multipart emails. For multipart emails,
+        it specifically looks for the 'text/plain' part. The body is expected
+        to be Base64 URL-safe encoded.
+
         Args:
-            message (dict): The email message to decode.
+            message (dict): The raw email message object, typically from an API
+                like Gmail API, containing payload and body information.
+
         Returns:
-            str: The decoded email body as a string.
+            str | None: The decoded email body as a UTF-8 string, or None if
+                the body cannot be found or decoded.
         """
         payload = message.get('payload', {})
 
@@ -271,12 +355,21 @@ class EmailParser:
             body = payload.get('body', {}).get('data', '')
             if body:
                 return base64.urlsafe_b64decode(body).decode('utf-8')
+        return None
 
-    def extract_tags_values_from_body(self):
-        """
-        Extracts key-value pairs (such as "Amount" and "Note") from the email body using BeautifulSoup and regex.
+    def extract_tags_values_from_body(self) -> dict:
+        """Extracts field-value pairs from the decoded email body.
+
+        It first parses the HTML email body using BeautifulSoup to get the raw text.
+        Then, for each field name obtained from `get_field_names`, it attempts
+        to process the raw text to extract and transform the corresponding value
+        using `process_field`.
+
         Returns:
-            dict: A dictionary of field names (e.g., "Amount", "Date") mapped to their processed values.
+            dict: A dictionary where keys are field names (e.g., "Amount", "Date")
+                and values are their processed counterparts. If processing for a
+                field fails (e.g., due to a ValueError from `process_field` or
+                `determine_rule`), the value for that field will be None.
         """
         soup = BeautifulSoup(self.message, 'html.parser')
         raw_text = " ".join(soup.get_text().split()).strip()

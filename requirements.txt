@@ -115,6 +115,7 @@ pyproject-hooks==1.2.0
     #   -r requirements.in
     #   build
     #   pip-tools
+python-dateutil # Added
 requests==2.32.3
     # via
     #   -r requirements.in
