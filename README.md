@@ -74,8 +74,23 @@ ExpenseTracker/
    pip install -r requirements.txt
    ```
 
-4. Set up environment variables:
-  You need to export env variables
+4. **Set up Gmail OAuth (Guided Installation)**:
+
+   Run the automated installation wizard:
+   ```bash
+   python -m tracker.expense_tracker install
+   # Or if you've built the binary:
+   etracker install
+   ```
+
+   The installer will guide you through:
+   - Creating your own Google Cloud project
+   - Enabling Gmail API
+   - Creating OAuth credentials
+   - Authenticating with your Gmail account
+
+5. Set up environment variables:
+   You need to export env variables
    ```env
    # Mandatory
    ET_SENDER_EMAIL=your-sender-email@gmail.com
@@ -84,17 +99,37 @@ ExpenseTracker/
    ET_TARGET_SUBJECT="Payments confirmation,Confirmation of funds transfer,Pay with QR transaction"
    ```
 
-5. Set up Google OAuth credentials:
-   - Create credentials in the Google Cloud Console.
-   - Download the `credentials.json` file and place it at `.etd` location.
+6. Legacy manual credentials (optional):
+   - If you do not use the installer, place `credentials.json` in `~/.etd/`.
 
 ## Usage
-1. Start the Expense Tracker:
+1. First-time setup:
    ```bash
-   python expense_tracker.py
+   python -m tracker.expense_tracker install
+   # Or
+   etracker install
    ```
 
-2. Reports will be displayed periodically, and unread emails will be processed and marked as read.
+2. Start tracking expenses continuously:
+   ```bash
+   python -m tracker.expense_tracker --continuous
+   # Or
+   etracker --continuous
+   ```
+
+3. Generate monthly report:
+   ```bash
+   python -m tracker.expense_tracker --month 1 --year 2024
+   # Or
+   etracker --month 1 --year 2024
+   ```
+
+4. Custom interval (seconds):
+   ```bash
+   etracker --interval 1800
+   ```
+
+Reports are displayed periodically, and unread emails are processed and marked as read.
 
 ## How to make a binary file
 You can make a binary file for Linux/macOS using the command below. 

@@ -6,7 +6,7 @@ from argparse import Namespace
 import unittest
 from unittest.mock import patch, MagicMock
 
-from tracker.expense_tracker import ExpenseTracker, clear_screen, run_cli, main
+from tracker.expense_tracker import ExpenseTracker, clear_screen, run_cli, main, run_install
 from tracker.email_fetcher import EmailFetchError
 
 
@@ -222,6 +222,25 @@ class TestClearScreen(unittest.TestCase):
 
 
 class TestCLIFlow(unittest.TestCase):
+    @patch("builtins.print")
+    @patch("tracker.expense_tracker.InstallationManager")
+    def test_run_install_handles_keyboard_interrupt(self, mock_installer_cls, mock_print):
+        mock_installer = mock_installer_cls.return_value
+        mock_installer.is_installed.return_value = False
+        mock_installer.run.side_effect = KeyboardInterrupt
+
+        run_install()
+
+        mock_print.assert_any_call("\nInstallation cancelled.")
+
+    @patch("tracker.expense_tracker.run_continuous")
+    @patch("tracker.expense_tracker.run_install")
+    def test_run_cli_install_command(self, mock_run_install, mock_run_continuous):
+        args = Namespace(command="install")
+        run_cli(args)
+        mock_run_install.assert_called_once_with()
+        mock_run_continuous.assert_not_called()
+
     @patch("tracker.expense_tracker.run_continuous")
     def test_run_cli_continuous_with_interval(self, mock_run_continuous):
         args = Namespace(interval=15)

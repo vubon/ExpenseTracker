@@ -25,19 +25,38 @@ class MemoryCache(Cache):
 class GmailAuthenticator:
     """
         Handles Gmail API Authentication and Service creation.
+        Supports both user-owned OAuth apps (oauth_credentials.json) and legacy credentials.json.
     """
 
     def __init__(self, credentials_file='credentials.json', token_file='token.pickle'):
         self.etd_handler = ETDHandler()
+        
+        # Check for user-owned OAuth credentials first (new way)
+        self.oauth_credentials_file = self.etd_handler.get_path('oauth_credentials.json')
+        
+        # Fall back to legacy credentials.json (old way)
         self.credentials_file = self.etd_handler.get_path(credentials_file)
+        
         self.token_file = self.etd_handler.get_path(token_file)
         self.service = None
 
+    def _get_credentials_file(self) -> str:
+        """Get the credentials file to use (prefer user-owned OAuth)."""
+        if os.path.exists(self.oauth_credentials_file):
+            return self.oauth_credentials_file
+        return self.credentials_file
+
     def validate_auth_files(self) -> None:
-        if not os.path.exists(self.credentials_file):
+        """Validate that credentials file exists."""
+        creds_file = self._get_credentials_file()
+        
+        if not os.path.exists(creds_file):
             raise FileNotFoundError(
-                f"Missing Google OAuth credentials file at: {self.credentials_file}. "
-                "Download credentials.json from Google Cloud Console and place it in the .etd directory."
+                f"Missing Google OAuth credentials file.\n\n"
+                f"To set up authentication, run:\n"
+                f"  etracker install\n\n"
+                f"This will guide you through creating your own OAuth app.\n"
+                f"(Legacy: You can also manually place credentials.json in ~/.etd/)"
             )
 
     def authenticate(self):
@@ -57,8 +76,9 @@ class GmailAuthenticator:
             else:
                 self.validate_auth_files()
                 # Start the OAuth flow to get credentials
+                creds_file = self._get_credentials_file()
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_file, SCOPES
+                    creds_file, SCOPES
                 )
                 creds = flow.run_local_server(port=0)
 

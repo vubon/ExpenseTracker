@@ -11,6 +11,7 @@ from tracker.email_parser import EmailParser
 from tracker.db import SQLiteHandler
 from tracker.display import Display
 from tracker.transaction import Transaction
+from tracker.installer import InstallationManager
 
 DEFAULT_SUBJECTS = "Payments,funds transfer,Top Up,QR transaction,Cardless Withdrawal,Funds transfer"
 
@@ -121,16 +122,69 @@ def run_monthly_summary(month, year):
         expense.close()
 
 
+def run_install():
+    """Run the guided installation flow."""
+    try:
+        installer = InstallationManager()
+
+        # Check if already installed
+        if installer.is_installed():
+            print("\n✓ Expense Tracker is already configured!")
+            print(f"✓ Credentials: {installer.credentials_path}")
+
+            # Test authentication
+            try:
+                auth = GmailAuthenticator()
+                auth.authenticate()
+                print("✓ Authentication test: Successful")
+                print("\nYou're all set! Run 'etracker --continuous' to start tracking.")
+            except Exception as e:
+                print(f"⚠️  Authentication test failed: {e}")
+                print("\nYou may need to re-run the installation.")
+            return
+
+        # Run the guided installation
+        success = installer.run()
+
+        if not success:
+            logger.error("Installation failed")
+            exit(1)
+    except KeyboardInterrupt:
+        print("\nInstallation cancelled.")
+
+
 def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Expense Tracker CLI")
+    parser = argparse.ArgumentParser(
+        description="Expense Tracker CLI",
+        prog='etracker'
+    )
+    
+    # Create subparsers for commands
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Install command
+    subparsers.add_parser(
+        'install',
+        help='Set up Gmail OAuth authentication (first-time setup)'
+    )
+    
+    # Main tracking arguments (when no subcommand is used)
     parser.add_argument('--interval', type=int, help='Run continuously every N seconds', default=argparse.SUPPRESS)
     parser.add_argument('--month', type=int, help='Month for summary (1–12)', default=argparse.SUPPRESS)
     parser.add_argument('--year', type=int, help='Year for summary (e.g., 2024)', default=argparse.SUPPRESS)
+    parser.add_argument('--continuous', action='store_true', help='Run in continuous mode', default=argparse.SUPPRESS)
+    
     return parser
 
 
 def run_cli(args, parser: argparse.ArgumentParser | None = None) -> None:
     parser = parser or create_parser()
+
+    # Handle install subcommand first
+    if hasattr(args, "command") and args.command == "install":
+        run_install()
+        return
+
     mode, error = validate_args(args)
 
     if mode == "error":
