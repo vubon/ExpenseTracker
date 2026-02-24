@@ -23,12 +23,6 @@ updates:
     pull-request-branch-name:
       separator: "/"
     rebase-strategy: "auto"
-    # Raise pull requests for high and critical vulnerabilities
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
-          - "version-update:semver-minor"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
