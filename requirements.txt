@@ -73,7 +73,7 @@ oauthlib==3.2.2
     # via
     #   -r requirements.in
     #   requests-oauthlib
-packaging==24.2
+packaging==26.0
     # via
     #   -r requirements.in
     #   build
