@@ -103,9 +103,12 @@ def run_continuous(interval: int = 3600):
             time.sleep(interval)  # An hour
             expense.show()  # Show the summary again
     except KeyboardInterrupt:
-        logger.info("Process interrupted. Exiting...")
+        print("\nProcess interrupted. Exiting...")
     finally:
-        expense.close()
+        try:
+            expense.close()
+        except:
+            pass
 
 
 def run_monthly_summary(month, year):
