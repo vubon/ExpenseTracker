@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.discovery_cache.base import Cache
 
 from tracker.etd import ETDHandler
+from tracker.logs_config import logger
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
@@ -32,6 +33,13 @@ class GmailAuthenticator:
         self.token_file = self.etd_handler.get_path(token_file)
         self.service = None
 
+    def validate_auth_files(self) -> None:
+        if not os.path.exists(self.credentials_file):
+            raise FileNotFoundError(
+                f"Missing Google OAuth credentials file at: {self.credentials_file}. "
+                "Download credentials.json from Google Cloud Console and place it in the .etd directory."
+            )
+
     def authenticate(self):
         """
         Authenticate and return the Gmail API service with token persistence.
@@ -47,6 +55,7 @@ class GmailAuthenticator:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())  # Refresh the token
             else:
+                self.validate_auth_files()
                 # Start the OAuth flow to get credentials
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, SCOPES
@@ -56,6 +65,11 @@ class GmailAuthenticator:
             # Save the credentials for future use
             with open(self.token_file, 'wb') as token:
                 pickle.dump(creds, token)
+
+            try:
+                os.chmod(self.token_file, 0o600)
+            except OSError as err:
+                logger.warning(f"Unable to set secure permissions on token file: {err}")
 
         # Build and return the Gmail API service
         self.service = build('gmail', 'v1', credentials=creds, cache=MemoryCache())

@@ -2,6 +2,13 @@ import functools
 import calendar
 
 
+def _has_arg(args, name: str) -> bool:
+    if isinstance(args, dict):
+        return name in args
+
+    return hasattr(args, name)
+
+
 def validate_sender_email(func):
     """
       A decorator to validate the presence of a `sender_email` attribute in the first argument of the wrapped function.
@@ -113,15 +120,18 @@ def validate_args(args) -> tuple:
             - If neither condition is met, it returns an error with an appropriate message.
     """
 
-    has_interval = 'interval' in args
-    has_month = 'month' in args
-    has_year = 'year' in args
+    has_interval = _has_arg(args, 'interval')
+    has_month = _has_arg(args, 'month')
+    has_year = _has_arg(args, 'year')
 
     if has_interval and (has_month or has_year):
         return "error", "Cannot use --interval with --month/--year together."
-    elif has_interval:
+    if has_interval:
         return "continuous", None
-    elif has_month and has_year:
+    if has_month and has_year:
         return "monthly", None
+    if has_month or has_year:
+        return "error", "Both --month and --year are required together."
+
     else:
         return "continuous", None

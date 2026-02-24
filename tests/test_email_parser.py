@@ -2,6 +2,7 @@ import json
 import os
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
 from tracker.email_parser import EmailParser
 
@@ -159,8 +160,8 @@ class TestEmailParser(unittest.TestCase):
             "Note": {"type": "default"},
             "DATE": {"type": "date"}
         }
-        with self.assertRaises(ValueError):
-            self.parser._determine_case_function_from_custom_rules()
+        case_func = self.parser._determine_case_function_from_custom_rules()
+        self.assertEqual(case_func("Amount"), "Amount")
 
     def test_invalid_load_rules_from_env(self):
         os.environ['ET_EMAIL_FIELD_RULES'] = 'Hello'
@@ -177,3 +178,20 @@ class TestEmailParser(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.parser.custom_rules = {"Date": {"type": "date"}}
             self.parser.determine_rule("Date")
+
+    def test_process_note_multi_word(self):
+        raw_value = "Payment completed. Note: Family dinner at downtown Date 01 January 2025 at 12:30:45"
+        processed_value = self.parser.process_note(raw_value)
+        self.assertEqual(processed_value, "family dinner at downtown")
+
+    @patch('tracker.logs_config.logger.error')
+    def test_decode_email_body_invalid_base64(self, mock_logger):
+        raw_message = {
+            'payload': {
+                'body': {'data': '***invalid***'},
+                'parts': []
+            }
+        }
+        decoded_message = self.parser.decode_email_body(raw_message)
+        self.assertEqual(decoded_message, "")
+        mock_logger.assert_called_once()

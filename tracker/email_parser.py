@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import re
+import binascii
 from datetime import datetime
 
 from bs4 import BeautifulSoup
@@ -100,7 +101,10 @@ class EmailParser:
         Returns:
             float | None: The processed amount as a float, or None if the value cannot be parsed.
         """
-        matched_value = re.search(r"Amount.*?([\d,.]+)", value)
+        matched_value = re.search(r"(?i)\bamount\b[^\d-]*([-+]?\d[\d,]*(?:\.\d+)?)", value)
+        if not matched_value:
+            matched_value = re.search(r"([-+]?\d[\d,]*(?:\.\d+)?)", value)
+
         return float(matched_value.group(1).replace(",", "")) if matched_value else None
 
     def process_date(self, value: str, date_format: str = "%d %B %Y at %H:%M:%S") -> datetime:
@@ -114,11 +118,22 @@ class EmailParser:
         Raises:
             ValueError: If the date value does not match the specified format.
         """
+        normalized_input = re.sub(r"(?i)\bdate\b\s*:?", "", value).strip()
+
+        if date_format:
+            try:
+                return datetime.strptime(normalized_input, date_format)
+            except ValueError:
+                pass
+
+        date_str, inferred_format = self.clean_and_normalize_date(value)
+        if not date_str or not inferred_format:
+            raise ValueError(f"Error parsing date value: '{value}'")
+
         try:
-            date_str, date_format = self.clean_and_normalize_date(value)
-            return datetime.strptime(date_str, date_format)
-        except (ValueError,TypeError) as err:
-            raise ValueError(f"Error parsing date with format {date_format}: {err}")
+            return datetime.strptime(date_str, inferred_format)
+        except ValueError as err:
+            raise ValueError(f"Error parsing date with format {inferred_format}: {err}")
 
     @staticmethod
     def clean_and_normalize_date(value: str) -> tuple[str, str] | tuple[None, None]:
@@ -139,19 +154,16 @@ class EmailParser:
         for pattern, format_str in patterns_formats:
             match = re.search(pattern, value)
             if match:
-                try:
-                    if format_str == "%B %d, %Y %H:%M:%S":  # "March 2, 2025 21:15:27"
-                        date_str = f"{match.group(1)} {match.group(2)}, {match.group(3)} {match.group(4)}"
-                    elif format_str == "%Y-%m-%d %H:%M:%S":  # "2025-03-02 21:15:27"
-                        date_str = f"{match.group(1)}-{match.group(2)}-{match.group(3)} {match.group(4)}"
-                    elif format_str == "%d/%m/%Y %H:%M:%S":  # "02/03/2025 21:15:27"
-                        date_str = f"{match.group(1)}/{match.group(2)}/{match.group(3)} {match.group(4)}"
-                    else:
-                        date_str = " ".join(match.groups())  # Other formats can be directly joined
+                if format_str == "%B %d, %Y %H:%M:%S":  # "March 2, 2025 21:15:27"
+                    date_str = f"{match.group(1)} {match.group(2)}, {match.group(3)} {match.group(4)}"
+                elif format_str == "%Y-%m-%d %H:%M:%S":  # "2025-03-02 21:15:27"
+                    date_str = f"{match.group(1)}-{match.group(2)}-{match.group(3)} {match.group(4)}"
+                elif format_str == "%d/%m/%Y %H:%M:%S":  # "02/03/2025 21:15:27"
+                    date_str = f"{match.group(1)}/{match.group(2)}/{match.group(3)} {match.group(4)}"
+                else:
+                    date_str = " ".join(match.groups())  # Other formats can be directly joined
 
-                    return date_str, format_str
-                except ValueError:
-                    continue
+                return date_str, format_str
 
         return None, None
 
@@ -175,8 +187,16 @@ class EmailParser:
         Returns:
             str: The processed value, or "unknown" if the value is empty.
         """
-        matched_value = re.search(r"Note\s+(\w+)", value, re.IGNORECASE)
-        return matched_value.group(1).lower() if matched_value else "unknown"
+        matched_value = re.search(
+            r"(?i)\bnote\b\s*:?\s*(.*?)(?=\b(amount|date)\b|$)",
+            value,
+            re.IGNORECASE
+        )
+        if not matched_value:
+            return "unknown"
+
+        note_value = matched_value.group(1).strip(" .:-")
+        return note_value.lower() if note_value else "unknown"
 
     def determine_rule(self, field_name: str):
         """
@@ -242,6 +262,9 @@ class EmailParser:
         # Check the case format of all custom_rules keys
         all_keys = self.custom_rules.keys()
 
+        if not all_keys:
+            return str.title
+
         if all(key.istitle() for key in all_keys):
             return str.title
         elif all(key.islower() for key in all_keys):
@@ -249,7 +272,7 @@ class EmailParser:
         elif all(key.isupper() for key in all_keys):
             return str.upper
         else:
-            raise ValueError("Custom rules keys must be uniformly in title, lower, or upper case.")
+            return lambda key: key
 
     @staticmethod
     def decode_email_body(message):
@@ -266,11 +289,21 @@ class EmailParser:
             for part in payload['parts']:
                 if part.get('mimeType') == 'text/plain':  # Look for plain text part
                     body = part.get('body', {}).get('data', '')
-                    return base64.urlsafe_b64decode(body).decode('utf-8')
+                    try:
+                        return base64.urlsafe_b64decode(body).decode('utf-8')
+                    except (ValueError, binascii.Error, UnicodeDecodeError) as err:
+                        logger.error(f"Failed to decode multipart email body: {err}")
+                        return ""
         else:  # Single-part email
             body = payload.get('body', {}).get('data', '')
             if body:
-                return base64.urlsafe_b64decode(body).decode('utf-8')
+                try:
+                    return base64.urlsafe_b64decode(body).decode('utf-8')
+                except (ValueError, binascii.Error, UnicodeDecodeError) as err:
+                    logger.error(f"Failed to decode email body: {err}")
+                    return ""
+
+        return ""
 
     def extract_tags_values_from_body(self):
         """

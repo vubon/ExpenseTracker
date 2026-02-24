@@ -1,11 +1,13 @@
 import json
 import os
 import datetime
+from argparse import Namespace
 
 import unittest
 from unittest.mock import patch, MagicMock
 
-from tracker.expense_tracker import ExpenseTracker, clear_screen
+from tracker.expense_tracker import ExpenseTracker, clear_screen, run_cli, main
+from tracker.email_fetcher import EmailFetchError
 
 
 class TestExpenseTracker(unittest.TestCase):
@@ -152,13 +154,26 @@ class TestExpenseTracker(unittest.TestCase):
         self.mock_email_fetcher.mark_message_as_read.assert_called_once_with("123")
 
     @patch("tracker.logs_config.logger.error")
-    def test_run_handle_exception(self, mock_logger):
+    def test_run_handle_unknown_exception(self, mock_logger):
         self.expense_tracker.email_fetcher.filter_unread_messages = MagicMock(side_effect=Exception("Test exception"))
         self.expense_tracker.run()
         self.expense_tracker.email_fetcher.filter_unread_messages.assert_called_once_with(
             self.expense_tracker.sender_email, self.expense_tracker.target_subjects
         )
         mock_logger.assert_called_once_with("Unknown error: Test exception")
+
+    @patch("tracker.logs_config.logger.error")
+    def test_run_handle_email_fetch_error(self, mock_logger):
+        self.expense_tracker.email_fetcher.filter_unread_messages = MagicMock(
+            side_effect=EmailFetchError("gmail failure")
+        )
+
+        self.expense_tracker.run()
+
+        self.expense_tracker.email_fetcher.filter_unread_messages.assert_called_once_with(
+            self.expense_tracker.sender_email, self.expense_tracker.target_subjects
+        )
+        mock_logger.assert_called_once_with("Email fetch failed: gmail failure")
 
     @patch("tracker.expense_tracker.clear_screen")
     def test_show_calls_display(self, mock_clear_screen):
@@ -204,6 +219,42 @@ class TestClearScreen(unittest.TestCase):
 
         # Ensure TERM is set to `xterm-256color`
         self.assertEqual(os.environ['TERM'], 'xterm-256color')
+
+
+class TestCLIFlow(unittest.TestCase):
+    @patch("tracker.expense_tracker.run_continuous")
+    def test_run_cli_continuous_with_interval(self, mock_run_continuous):
+        args = Namespace(interval=15)
+        run_cli(args)
+        mock_run_continuous.assert_called_once_with(15)
+
+    @patch("tracker.expense_tracker.run_continuous")
+    def test_run_cli_continuous_without_interval(self, mock_run_continuous):
+        args = Namespace()
+        run_cli(args)
+        mock_run_continuous.assert_called_once_with()
+
+    @patch("tracker.expense_tracker.run_monthly_summary")
+    def test_run_cli_monthly(self, mock_run_monthly_summary):
+        args = Namespace(month=2, year=2025)
+        run_cli(args)
+        mock_run_monthly_summary.assert_called_once_with(2, 2025)
+
+    def test_run_cli_invalid_combination_calls_parser_error(self):
+        parser = MagicMock()
+        parser.error.side_effect = SystemExit(2)
+
+        with self.assertRaises(SystemExit):
+            run_cli(Namespace(month=2), parser)
+
+        parser.error.assert_called_once_with("Both --month and --year are required together.")
+
+    @patch("tracker.expense_tracker.run_cli")
+    def test_main_parses_args_and_delegates(self, mock_run_cli):
+        main(["--month", "2", "--year", "2025"])
+        called_args = mock_run_cli.call_args[0][0]
+        self.assertEqual(called_args.month, 2)
+        self.assertEqual(called_args.year, 2025)
 
     @patch('os.system')  # Mock `os.system` to prevent actual terminal clearing
     def test_clear_screen_non_posix(self, mock_os_system):

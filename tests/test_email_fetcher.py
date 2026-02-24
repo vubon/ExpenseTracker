@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from tracker.email_fetcher import EmailFetcher
+from tracker.email_fetcher import EmailFetcher, EmailFetchError
 
 
 class TestEmailFetcher(unittest.TestCase):
@@ -32,6 +32,14 @@ class TestEmailFetcher(unittest.TestCase):
         result = self.email_fetcher.list_unread_messages(sender='test@example.com')
         self.assertEqual(result, [])
 
+    def test_list_unread_messages_raises_email_fetch_error(self):
+        self.mock_service.users().messages().list().execute.side_effect = Exception("API Error")
+
+        with self.assertRaises(EmailFetchError) as context:
+            self.email_fetcher.list_unread_messages(sender='test@example.com')
+
+        self.assertIn("Unexpected error while listing unread messages", str(context.exception))
+
     def test_get_message_details(self):
         # Mock the `get` and `execute` methods
         mock_get = self.mock_service.users().messages().get
@@ -55,16 +63,27 @@ class TestEmailFetcher(unittest.TestCase):
         mock_logger.assert_called_once_with("Failed to fetch details for message ID 123: API Error")
 
     def test_mark_message_as_read(self):
-        self.email_fetcher.mark_message_as_read(message_id='123')
+        result = self.email_fetcher.mark_message_as_read(message_id='123')
         self.mock_service.users().messages().modify.assert_called_once_with(
             userId='me',
             id='123',
             body={'removeLabelIds': ['UNREAD']}
         )
+        self.assertTrue(result)
 
     def test_mark_message_as_read_no_id(self):
-        self.email_fetcher.mark_message_as_read(message_id=None)
+        result = self.email_fetcher.mark_message_as_read(message_id=None)
         self.mock_service.users().messages().modify.assert_not_called()
+        self.assertIsNone(result)
+
+    @patch('tracker.logs_config.logger.error')
+    def test_mark_message_as_read_error(self, mock_logger):
+        self.mock_service.users().messages().modify().execute.side_effect = Exception('API Error')
+
+        result = self.email_fetcher.mark_message_as_read(message_id='123')
+
+        self.assertFalse(result)
+        mock_logger.assert_called_once_with("Failed to mark message as read for ID 123: API Error")
 
     def test_get_email_subject(self):
         message = {
