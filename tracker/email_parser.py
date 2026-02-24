@@ -187,16 +187,8 @@ class EmailParser:
         Returns:
             str: The processed value, or "unknown" if the value is empty.
         """
-        matched_value = re.search(
-            r"(?i)\bnote\b\s*:?\s*(.*?)(?=\b(amount|date)\b|$)",
-            value,
-            re.IGNORECASE
-        )
-        if not matched_value:
-            return "unknown"
-
-        note_value = matched_value.group(1).strip(" .:-")
-        return note_value.lower() if note_value else "unknown"
+        matched_value = re.search(r"Note\s+(\w+)", value, re.IGNORECASE)
+        return matched_value.group(1).lower() if matched_value else "unknown"
 
     def determine_rule(self, field_name: str):
         """

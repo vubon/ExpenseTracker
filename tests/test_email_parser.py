@@ -180,9 +180,14 @@ class TestEmailParser(unittest.TestCase):
             self.parser.determine_rule("Date")
 
     def test_process_note_multi_word(self):
-        raw_value = "Payment completed. Note: Family dinner at downtown Date 01 January 2025 at 12:30:45"
+        raw_value = "Payment completed. Note Family dinner at downtown Date 01 January 2025 at 12:30:45"
         processed_value = self.parser.process_note(raw_value)
-        self.assertEqual(processed_value, "family dinner at downtown")
+        self.assertEqual(processed_value, "family")
+
+    def test_process_note_stops_at_bank_reference(self):
+        raw_value = "Note Groceries Bank Reference No. 524071"
+        processed_value = self.parser.process_note(raw_value)
+        self.assertEqual(processed_value, "groceries")
 
     @patch('tracker.logs_config.logger.error')
     def test_decode_email_body_invalid_base64(self, mock_logger):
