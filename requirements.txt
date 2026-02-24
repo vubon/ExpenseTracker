@@ -85,13 +85,13 @@ proto-plus==1.25.0
     # via
     #   -r requirements.in
     #   google-api-core
-protobuf==5.29.2
+protobuf==5.29.6
     # via
     #   -r requirements.in
     #   google-api-core
     #   googleapis-common-protos
     #   proto-plus
-pyasn1==0.6.1
+pyasn1==0.6.2
     # via
     #   -r requirements.in
     #   pyasn1-modules
@@ -115,7 +115,7 @@ pyproject-hooks==1.2.0
     #   -r requirements.in
     #   build
     #   pip-tools
-requests==2.32.3
+requests==2.32.4
     # via
     #   -r requirements.in
     #   google-api-core
@@ -138,7 +138,7 @@ uritemplate==4.1.1
     # via
     #   -r requirements.in
     #   google-api-python-client
-urllib3==2.3.0
+urllib3==2.6.3
     # via
     #   -r requirements.in
     #   requests
