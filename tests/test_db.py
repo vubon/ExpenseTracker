@@ -12,6 +12,7 @@ class TestSQLiteHandler(unittest.TestCase):
         self.mock_conn = MagicMock()
         self.mock_cursor = MagicMock()
         self.mock_conn.cursor.return_value = self.mock_cursor
+        self.mock_cursor.fetchone.return_value = None
 
         # Patch sqlite3.connect to return the mock connection
         self.sqlite_connect_patch = patch('sqlite3.connect', return_value=self.mock_conn)
@@ -37,6 +38,28 @@ class TestSQLiteHandler(unittest.TestCase):
         self.mock_cursor.execute.assert_any_call('''
         CREATE INDEX IF NOT EXISTS idx_category ON transactions (category)
         ''')
+
+    def test_get_schema_version_no_row(self):
+        self.mock_cursor.fetchone.return_value = None
+
+        version = self.db_handler.get_schema_version()
+
+        self.assertEqual(version, 0)
+        self.mock_cursor.execute.assert_any_call('SELECT version FROM schema_version LIMIT 1')
+
+    def test_get_schema_version_existing_row(self):
+        self.mock_cursor.fetchone.return_value = (1,)
+
+        version = self.db_handler.get_schema_version()
+
+        self.assertEqual(version, 1)
+        self.mock_cursor.execute.assert_any_call('SELECT version FROM schema_version LIMIT 1')
+
+    def test_set_schema_version(self):
+        self.db_handler.set_schema_version(1)
+
+        self.mock_cursor.execute.assert_any_call('DELETE FROM schema_version')
+        self.mock_cursor.execute.assert_any_call('INSERT INTO schema_version (version) VALUES (?)', (1,))
 
     def test_create_transaction(self):
         # Test inserting a transaction

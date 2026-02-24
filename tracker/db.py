@@ -6,6 +6,9 @@ from tracker.etd import ETDHandler
 from tracker.logs_config import logger
 
 
+CURRENT_SCHEMA_VERSION = 1
+
+
 class SQLiteHandler:
     def __init__(self, db_name: str = 'expense_tracker.db'):
         """
@@ -17,13 +20,55 @@ class SQLiteHandler:
         db_path = self.ccd_handler.get_path(db_name)
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
-        self.create_table()
+        self.initialize_database()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close_connection()
+
+    def initialize_database(self) -> None:
+        self.create_schema_version_table()
+        current_version = self.get_schema_version()
+        self.apply_migrations(current_version)
+
+    def create_schema_version_table(self) -> None:
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER NOT NULL
+        )
+        ''')
+        self.conn.commit()
+
+    def get_schema_version(self) -> int:
+        self.cursor.execute('SELECT version FROM schema_version LIMIT 1')
+        row = self.cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def set_schema_version(self, version: int) -> None:
+        self.cursor.execute('DELETE FROM schema_version')
+        self.cursor.execute('INSERT INTO schema_version (version) VALUES (?)', (version,))
+        self.conn.commit()
+
+    def apply_migrations(self, current_version: int) -> None:
+        migrations = {
+            1: self._migration_1_create_transactions_table
+        }
+
+        version = current_version
+        while version < CURRENT_SCHEMA_VERSION:
+            next_version = version + 1
+            migration = migrations.get(next_version)
+            if migration is None:
+                raise RuntimeError(f"Missing migration for schema version {next_version}")
+
+            migration()
+            self.set_schema_version(next_version)
+            version = next_version
+
+    def _migration_1_create_transactions_table(self) -> None:
+        self.create_table()
 
     def create_table(self) -> None:
         """

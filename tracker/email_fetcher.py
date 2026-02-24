@@ -1,6 +1,11 @@
 from typing import Any, List, Optional
+from googleapiclient.errors import HttpError
 
 from tracker.logs_config import logger
+
+
+class EmailFetchError(Exception):
+    pass
 
 
 class EmailFetcher:
@@ -20,11 +25,16 @@ class EmailFetcher:
         """
         Fetch unread messages matching the sender and subject filter.
         """
-        results = self.service.users().messages().list(
-            userId='me',
-            q=f"from:{sender} is:unread"
-        ).execute()
-        return results.get('messages', [])
+        try:
+            results = self.service.users().messages().list(
+                userId='me',
+                q=f"from:{sender} is:unread"
+            ).execute()
+            return results.get('messages', [])
+        except HttpError as err:
+            raise EmailFetchError(f"Gmail API error while listing unread messages: {err}") from err
+        except Exception as err:
+            raise EmailFetchError(f"Unexpected error while listing unread messages: {err}") from err
 
     def filter_unread_messages(self, sender: str, target_subjects: List[str]) -> List[dict]:
         unread_messages = self.list_unread_messages(sender=sender)
@@ -49,22 +59,33 @@ class EmailFetcher:
         """
         try:
             return self.service.users().messages().get(userId='me', id=message_id).execute()
-        except Exception as e:
-            logger.error(f"Failed to fetch details for message ID {message_id}: {e}")
+        except HttpError as err:
+            logger.error(f"Failed to fetch details for message ID {message_id}: {err}")
+            return None
+        except Exception as err:
+            logger.error(f"Failed to fetch details for message ID {message_id}: {err}")
             return None
 
-    def mark_message_as_read(self, message_id: str | None) -> Optional[None]:
+    def mark_message_as_read(self, message_id: str | None) -> Optional[bool]:
         """
         Mark the email as read after processing.
         """
         if not message_id:
-            return
+            return None
 
-        self.service.users().messages().modify(
-            userId='me',
-            id=message_id,
-            body={'removeLabelIds': ['UNREAD']}
-        ).execute()
+        try:
+            self.service.users().messages().modify(
+                userId='me',
+                id=message_id,
+                body={'removeLabelIds': ['UNREAD']}
+            ).execute()
+            return True
+        except HttpError as err:
+            logger.error(f"Failed to mark message as read for ID {message_id}: {err}")
+            return False
+        except Exception as err:
+            logger.error(f"Failed to mark message as read for ID {message_id}: {err}")
+            return False
 
     @staticmethod
     def get_email_subject(message) -> Any | None:

@@ -1,4 +1,5 @@
 import unittest
+from argparse import Namespace
 from tracker.validators import validate_month_year, validate_args, validate_sender_email
 
 
@@ -94,19 +95,27 @@ class TestValidateMonthYear(unittest.TestCase):
 
 class TestValidateArgs(unittest.TestCase):
     def test_validate_args_with_interval(self):
-        args = {"interval": True}
+        args = Namespace(interval=30)
         self.assertEqual(validate_args(args), ("continuous", None))
 
     def test_validate_args_with_month_and_year(self):
-        args = {"month": "January", "year": "2023"}
+        args = Namespace(month=1, year=2023)
         self.assertEqual(validate_args(args), ("monthly", None))
 
     def test_validate_args_with_interval_and_month(self):
-        args = {"interval": True, "month": "January"}
+        args = Namespace(interval=30, month=1)
         self.assertEqual(validate_args(args), ("error", "Cannot use --interval with --month/--year together."))
 
-    def test_validate_args_with_no_valid_combination(self):
-        args = {}
+    def test_validate_args_with_no_args(self):
+        args = Namespace()
         self.assertEqual(validate_args(args), ("continuous", None))
+
+    def test_validate_args_with_month_only(self):
+        args = Namespace(month=1)
+        self.assertEqual(validate_args(args), ("error", "Both --month and --year are required together."))
+
+    def test_validate_args_with_year_only(self):
+        args = Namespace(year=2023)
+        self.assertEqual(validate_args(args), ("error", "Both --month and --year are required together."))
 
 

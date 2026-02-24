@@ -6,10 +6,11 @@ import time
 from tracker.validators import validate_month_year, validate_args, validate_sender_email
 from tracker.logs_config import logger
 from tracker.gmail_authenticator import GmailAuthenticator
-from tracker.email_fetcher import EmailFetcher
+from tracker.email_fetcher import EmailFetcher, EmailFetchError
 from tracker.email_parser import EmailParser
 from tracker.db import SQLiteHandler
 from tracker.display import Display
+from tracker.transaction import Transaction
 
 DEFAULT_SUBJECTS = "Payments,funds transfer,Top Up,QR transaction,Cardless Withdrawal,Funds transfer"
 
@@ -44,30 +45,40 @@ class ExpenseTracker:
     def run(self):
         try:
             messages = self.email_fetcher.filter_unread_messages(self.sender_email, self.target_subjects)
+        except EmailFetchError as err:
+            logger.error(f"Email fetch failed: {err}")
+            return
+        except Exception as err:
+            logger.error(f"Unknown error: {err}")
+            return
 
-            if not messages:
-                logger.info("No more email")
-                return
+        if not messages:
+            logger.info("No more email")
+            return
 
-            for message in messages:
+        for message in messages:
+            try:
                 email_parser = EmailParser(message=message)
                 data = email_parser.extract_tags_values_from_body()
 
                 if self.process_data(data):
-                    self.email_fetcher.mark_message_as_read(message.get("id"))
-
-        except Exception as err:
-            logger.error(f"Unknown error: {err}")
+                    mark_as_read_result = self.email_fetcher.mark_message_as_read(message.get("id"))
+                    if mark_as_read_result is False:
+                        logger.warning(f"Processed message but failed to mark as read: {message.get('id')}")
+            except ValueError as err:
+                logger.warning(f"Skipping email due to parsing error: {err}")
+            except Exception as err:
+                logger.error(f"Failed to process message {message.get('id')}: {err}")
 
     def process_data(self, data):
-        amount, note, date = data.get("Amount"), data.get("Note", "unknown"), data.get("Date")
+        transaction = Transaction.from_parsed_email(data)
 
-        if any(x is None for x in [amount, date]):
+        if transaction is None:
             logger.warning(f"Skipping email with missing data: {data}")
             return False
 
         # Create a new entry in the database
-        return self.db.create(note, amount, date)
+        return self.db.create(transaction.category, transaction.amount, transaction.timestamp)
 
     def show(self):
         clear_screen()
@@ -92,9 +103,12 @@ def run_continuous(interval: int = 3600):
             time.sleep(interval)  # An hour
             expense.show()  # Show the summary again
     except KeyboardInterrupt:
-        logger.info("Process interrupted. Exiting...")
+        print("\nProcess interrupted. Exiting...")
     finally:
-        expense.close()
+        try:
+            expense.close()
+        except:
+            pass
 
 
 def run_monthly_summary(month, year):
@@ -107,18 +121,31 @@ def run_monthly_summary(month, year):
         expense.close()
 
 
-if __name__ == '__main__':
+def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Expense Tracker CLI")
     parser.add_argument('--interval', type=int, help='Run continuously every N seconds', default=argparse.SUPPRESS)
     parser.add_argument('--month', type=int, help='Month for summary (1–12)', default=argparse.SUPPRESS)
     parser.add_argument('--year', type=int, help='Year for summary (e.g., 2024)', default=argparse.SUPPRESS)
+    return parser
 
-    args = parser.parse_args()
+
+def run_cli(args, parser: argparse.ArgumentParser | None = None) -> None:
+    parser = parser or create_parser()
     mode, error = validate_args(args)
 
-    if mode == "continuous":
+    if mode == "error":
+        parser.error(error or "Invalid combination of arguments.")
+    elif mode == "continuous":
         run_continuous(args.interval) if hasattr(args, "interval") else run_continuous()
     elif mode == "monthly":
         run_monthly_summary(args.month, args.year)
-    else:
-        parser.error("Invalid combination of arguments. Use --interval or --month and --year.")
+
+
+def main(argv=None) -> None:
+    parser = create_parser()
+    args = parser.parse_args(argv)
+    run_cli(args, parser)
+
+
+if __name__ == '__main__':
+    main()

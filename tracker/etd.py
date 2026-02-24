@@ -8,7 +8,12 @@ class ETDHandler:
 
     def ensure_directory(self):
         if not os.path.exists(self.base_dir):
-            os.makedirs(self.base_dir)
+            os.makedirs(self.base_dir, mode=0o700, exist_ok=True)
+
+        try:
+            os.chmod(self.base_dir, 0o700)
+        except OSError:
+            pass
 
     def get_path(self, filename):
         return os.path.join(self.base_dir, filename)
